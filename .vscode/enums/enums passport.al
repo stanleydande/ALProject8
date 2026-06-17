@@ -22,7 +22,7 @@ enum 60141 "Dual nationality type"
     {
 
     }
-    value(1; "YES")
+    value(1; "YES"
     {
         Caption = 'YES';
     }
