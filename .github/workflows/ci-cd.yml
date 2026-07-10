@@ -21,7 +21,20 @@ jobs:
         shell: powershell
         run: |
           Write-Host "Symbols assumed present in .alpackages/"
+      
+      - name: Bump App Version
+        shell: powershell
+        run: |
+          $appJsonPath = "$env:GITHUB_WORKSPACE\app.json"
+          $app = Get-Content $appJsonPath -Raw | ConvertFrom-Json
 
+          $versionParts = $app.version -split '\.'
+          $versionParts[3] = "$env:GITHUB_RUN_NUMBER"   # bump the 4th segment to build number
+          $app.version = ($versionParts -join '.')
+
+          Write-Host "New version: $($app.version)"
+
+          $app | ConvertTo-Json -Depth 10 | Set-Content $appJsonPath
       - name: Compile AL Extension
         shell: powershell
         run: |
