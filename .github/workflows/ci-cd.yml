@@ -25,7 +25,33 @@ jobs:
       - name: Compile AL Extension
         shell: powershell
         run: |
-          # ...unchanged...
+          # Find alc.exe from VS Code AL extension
+          $alcPath = Get-ChildItem "$env:USERPROFILE\.vscode\extensions\ms-dynamics-smb.al-*\bin\win32\alc.exe" |
+                     Sort-Object FullName -Descending |
+                     Select-Object -First 1
+
+          if (-not $alcPath) {
+            Write-Error "alc.exe not found."
+            exit 1
+          }
+
+          Write-Host "Using alc.exe at: $($alcPath.FullName)"
+
+          $app          = Get-Content "$env:GITHUB_WORKSPACE\app.json" | ConvertFrom-Json
+          $outputDir    = "$env:GITHUB_WORKSPACE\output"
+          $outputApp    = $outputDir + "\" + $app.publisher + "_" + $app.name + "_" + $app.version + ".app"
+          $packagesPath = "C:\Users\PC\Documents\AL\ALProject8\.alpackages"
+
+          New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
+
+          Write-Host "Symbols : $packagesPath"
+          Write-Host "Project : $env:GITHUB_WORKSPACE"
+          Write-Host "Output  : $outputApp"
+
+          if (-not (Test-Path $packagesPath)) {
+            Write-Error "alpackages not found at: $packagesPath - Run AL: Download Symbols in VS Code first."
+            exit 1
+          }
 
           & $alcPath.FullName `
             /project:"$env:GITHUB_WORKSPACE" `
@@ -41,17 +67,7 @@ jobs:
           Write-Host "Output file: $outputApp"
 
           # Make the output path available to subsequent steps
-          "OUTPUT_APP=$outputApp" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
-      - name: Run AL Tests
-        shell: powershell
-        run: |
-          $testApp = "$env:GITHUB_WORKSPACE\output\ALProject1.test.app"
-          if (Test-Path $testApp) {
-            Write-Host "Running tests..."
-          } else {
-            Write-Host "No test app found, skipping tests"
-          }
+          "OUTPUT_APP=$outputApp" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append}
       - name: Publish App to Local BC Container
         shell: powershell
         env:
