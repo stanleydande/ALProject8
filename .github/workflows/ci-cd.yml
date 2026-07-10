@@ -76,7 +76,7 @@ jobs:
           BC_USERNAME: ${{ secrets.BC_USERNAME }}
           BC_PASSWORD: ${{ secrets.BC_PASSWORD }}
         run: |
-          $containerName = "bcserver"   # <-- replace with your actual container name
+          $containerName = "stanley"   # <- actual container name
 
           if (-not (Get-Module -ListAvailable -Name BcContainerHelper)) {
             Write-Host "Installing BcContainerHelper module..."
