@@ -25,33 +25,7 @@ jobs:
       - name: Compile AL Extension
         shell: powershell
         run: |
-          # Find alc.exe from VS Code AL extensiona
-          $alcPath = Get-ChildItem "$env:USERPROFILE\.vscode\extensions\ms-dynamics-smb.al-*\bin\win32\alc.exe" |
-                     Sort-Object FullName -Descending |
-                     Select-Object -First 1
-
-          if (-not $alcPath) {
-            Write-Error "alc.exe not found."
-            exit 1
-          }
-
-          Write-Host "Using alc.exe at: $($alcPath.FullName)"
-
-          $app          = Get-Content "$env:GITHUB_WORKSPACE\app.json" | ConvertFrom-Json
-          $outputDir    = "$env:GITHUB_WORKSPACE\output"
-          $outputApp    = $outputDir + "\" + $app.publisher + "_" + $app.name + "_" + $app.version + ".app"
-          $packagesPath = "C:\Users\PC\Documents\AL\ALProject8\.alpackages"
-
-          New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
-
-          Write-Host "Symbols : $packagesPath"
-          Write-Host "Project : $env:GITHUB_WORKSPACE"
-          Write-Host "Output  : $outputApp"
-
-          if (-not (Test-Path $packagesPath)) {
-            Write-Error "alpackages not found at: $packagesPath - Run AL: Download Symbols in VS Code first."
-            exit 1
-          }
+          # ...unchanged...
 
           & $alcPath.FullName `
             /project:"$env:GITHUB_WORKSPACE" `
@@ -66,6 +40,9 @@ jobs:
           Write-Host "Compilation successful!"
           Write-Host "Output file: $outputApp"
 
+          # Make the output path available to subsequent steps
+          "OUTPUT_APP=$outputApp" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
       - name: Run AL Tests
         shell: powershell
         run: |
@@ -75,3 +52,43 @@ jobs:
           } else {
             Write-Host "No test app found, skipping tests"
           }
+      - name: Publish App to Local BC Container
+        shell: powershell
+        env:
+          BC_USERNAME: ${{ secrets.BC_USERNAME }}
+          BC_PASSWORD: ${{ secrets.BC_PASSWORD }}
+        run: |
+          $containerName = "bcserver"   # <-- replace with your actual container name
+
+          if (-not (Get-Module -ListAvailable -Name BcContainerHelper)) {
+            Write-Host "Installing BcContainerHelper module..."
+            Install-Module BcContainerHelper -Force -AllowClobber -Scope CurrentUser
+          }
+          Import-Module BcContainerHelper -Force
+
+          if (-not (Test-Path $env:OUTPUT_APP)) {
+            Write-Error "App file not found at: $env:OUTPUT_APP"
+            exit 1
+          }
+
+          # Build credential object from env vars (never hardcode creds in the script)
+          $securePassword = ConvertTo-SecureString $env:BC_PASSWORD -AsPlainText -Force
+          $credential     = New-Object System.Management.Automation.PSCredential ($env:BC_USERNAME, $securePassword)
+
+          Write-Host "Publishing $env:OUTPUT_APP to container '$containerName'..."
+
+          Publish-BcContainerApp `
+            -containerName $containerName `
+            -appFile $env:OUTPUT_APP `
+            -credential $credential `
+            -skipVerification `
+            -sync `
+            -install `
+            -scope Global
+
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "Publish to container failed!"
+            exit 1
+          }
+
+          Write-Host "App published and installed successfully in '$containerName'."
